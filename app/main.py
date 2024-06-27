@@ -1,9 +1,11 @@
+import logging
 import re
 import socket
 from threading import Thread
 
-from helpers.encode import encode_simple_str, encode_bulk_str
+from helpers.encode_decode import encode_simple_str, encode_bulk_str
 
+buffer = {}
 
 def process_response(client_socket, addr):
     try:
@@ -18,6 +20,20 @@ def process_response(client_socket, addr):
                     client_socket.send(encode_bulk_str(echo_word))
                 if 'PING' in data:
                     client_socket.send(encode_simple_str('PONG'))
+                if 'SET' in data:
+                    data_parts = data.split('\r\n')
+                    key = data_parts[4]
+                    value = data_parts[6]
+                    buffer[key] = value
+                    client_socket.send(encode_simple_str('OK'))
+                if 'GET' in data:
+                    data_parts = data.split('\r\n')
+                    key = data_parts[4]
+                    returned_value = buffer.get(key)
+                    if buffer:
+                        client_socket.send(encode_bulk_str((returned_value)))
+                    else:
+                        logging.log(f'Can not GET value by key {key}')
     except Exception as e:
         print(f"Error handling client {addr}: {e}")
     finally:
