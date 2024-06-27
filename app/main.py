@@ -2,7 +2,10 @@ import re
 import socket
 from threading import Thread
 
-def on_new_client(client_socket, addr):
+from helpers.encode import encode_simple_str, encode_bulk_str
+
+
+def process_response(client_socket, addr):
     try:
         while True:
             data = client_socket.recv(1024).decode('utf-8')
@@ -12,10 +15,9 @@ def on_new_client(client_socket, addr):
                 if re.search('echo', data, re.IGNORECASE):
                     data_parts = data.split('\r\n')
                     echo_word = data_parts[-2]
-                    resp_bulk_str = f'${len(echo_word)}\r\n{echo_word}\r\n'
-                    client_socket.send(resp_bulk_str.encode('utf-8'))
-                if data == '*1\r\n$4\r\nPING\r\n':
-                    client_socket.send(b'+PONG\r\n')
+                    client_socket.send(encode_bulk_str(echo_word))
+                if 'PING' in data:
+                    client_socket.send(encode_simple_str('PONG'))
     except Exception as e:
         print(f"Error handling client {addr}: {e}")
     finally:
@@ -32,9 +34,9 @@ def main():
     s.listen(5)
 
     while True:
-        conn, addr = s.accept()  # wait for client
+        conn, addr = s.accept()
         print(f"New connection from: {addr}")
-        thread = Thread(target=on_new_client, args=(conn, addr))
+        thread = Thread(target=process_response, args=(conn, addr))
         thread.start()
 
 if __name__ == "__main__":
